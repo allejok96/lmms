@@ -67,7 +67,6 @@ public:
 	ComboBoxModel *zoomingModel() const;
 	ComboBoxModel *snappingModel() const;
 	float getSnapSize() const;
-	QString getSnapSizeString() const;
 
 public slots:
 	void scrolled( int new_pos );
@@ -78,7 +77,6 @@ public slots:
 	void setEditMode( EditMode mode );
 	void setEditModeDraw();
 	void setEditModeSelect();
-	void toggleProportionalSnap();
 
 	void updatePosition( const MidiTime & t );
 	void updatePositionLine();
@@ -136,7 +134,6 @@ private:
 
 	ComboBoxModel* m_zoomingModel;
 	ComboBoxModel* m_snappingModel;
-	bool m_proportionalSnap;
 
 	static const QVector<double> m_zoomLevels;
 
@@ -187,8 +184,6 @@ protected slots:
 	void lostFocus();
 	void adjustUiAfterProjectLoad();
 
-	void updateSnapLabel();
-
 signals:
 	void playTriggered();
 	void resized();
@@ -200,7 +195,6 @@ private:
 	QAction* m_addBBTrackAction;
 	QAction* m_addSampleTrackAction;
 	QAction* m_addAutomationTrackAction;
-	QAction* m_setProportionalSnapAction;
 
 	ActionGroup * m_editModeGroup;
 	QAction* m_drawModeAction;
@@ -209,7 +203,6 @@ private:
 
 	ComboBox * m_zoomingComboBox;
 	ComboBox * m_snappingComboBox;
-	QLabel* m_snapSizeLabel;
 
 	QAction* m_insertBarAction;
 	QAction* m_removeBarAction;
