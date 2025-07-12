@@ -33,9 +33,23 @@ class QAction;
 class QComboBox;
 class QTextCharFormat;
 class QTextEdit;
+class QSlider;
 
 namespace lmms::gui
 {
+
+class WheelEventFilter : public QObject
+{
+	Q_OBJECT
+public:
+	WheelEventFilter(QObject *parent, QTextEdit *output):
+		QObject(parent),
+		m_edit(output)
+	{}
+	QTextEdit* m_edit;
+protected:
+	bool eventFilter(QObject *obj, QEvent *event) override;
+};
 
 
 class LMMS_EXPORT ProjectNotes : public QMainWindow, public SerializingObject
@@ -87,6 +101,8 @@ private:
 		* m_actionAlignJustify;
 	QComboBox * m_comboFont;
 	QComboBox * m_comboSize;
+	QSlider* m_verSlider;
+	QSlider* m_horSlider;
 
 } ;
 
