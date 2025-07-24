@@ -299,8 +299,6 @@ PianoRoll::PianoRoll() :
 			this,
 			SLOT( updatePositionAccompany( const lmms::TimePos& ) ) );*/
 
-	removeSelection();
-
 	// init scrollbars
 	m_leftRightScroll = new QScrollBar( Qt::Horizontal, this );
 	m_leftRightScroll->setSingleStep( 1 );
@@ -420,10 +418,6 @@ PianoRoll::PianoRoll() :
 
 	connect( Engine::getSong(), SIGNAL(timeSignatureChanged(int,int)),
 						this, SLOT(update()));
-
-	//connection for selecion from timeline
-	connect( m_timeLine, SIGNAL(regionSelectedFromPixels(int,int)),
-			this, SLOT(selectRegionFromPixels(int,int)));
 
 	// Set up snap model
 	m_snapModel.addItem(tr("Nudge"));
@@ -934,45 +928,6 @@ int PianoRoll::trackOctaveSize() const
 }
 
 
-void PianoRoll::selectRegionFromPixels( int xStart, int xEnd )
-{
-
-	xStart -= m_whiteKeyWidth;
-	xEnd -= m_whiteKeyWidth;
-
-	// select an area of notes
-	int posTicks = xStart * TimePos::ticksPerBar() / m_ppb +
-					m_currentPosition;
-	int keyNum = 0;
-	m_selectStartTick = posTicks;
-	m_selectedTick = 0;
-	m_selectStartKey = keyNum;
-	m_selectedKeys = 1;
-	// change size of selection
-
-	// get tick in which the cursor is posated
-	posTicks = xEnd  * TimePos::ticksPerBar() / m_ppb +
-					m_currentPosition;
-	keyNum = 120;
-
-	m_selectedTick = posTicks - m_selectStartTick;
-	if( (int) m_selectStartTick + m_selectedTick < 0 )
-	{
-		m_selectedTick = -static_cast<int>(
-					m_selectStartTick );
-	}
-	m_selectedKeys = keyNum - m_selectStartKey;
-	if( keyNum <= m_selectStartKey )
-	{
-		--m_selectedKeys;
-	}
-
-	computeSelectedNotes( false );
-}
-
-
-
-
 void PianoRoll::drawNoteRect( QPainter & p, int x, int y,
 				int width, const Note * n, const QColor & noteCol, const QColor & noteTextColor,
 				const QColor & selCol, const int noteOpc, const bool borders, bool drawNoteName )
@@ -1160,17 +1115,6 @@ void PianoRoll::drawDetuningInfo( QPainter & _p, const Note * _n, int _x,
 		old_x = cur_x;
 		old_y = cur_y;
 	}
-}
-
-
-
-
-void PianoRoll::removeSelection()
-{
-	m_selectStartTick = 0;
-	m_selectedTick = 0;
-	m_selectStartKey = 0;
-	m_selectedKeys = 0;
 }
 
 
@@ -1543,7 +1487,6 @@ void PianoRoll::keyReleaseEvent(QKeyEvent* ke )
 			{
 				break;
 			}
-			computeSelectedNotes( ke->modifiers() & Qt::ShiftModifier);
 			m_editMode = m_ctrlMode;
 			if (m_editMode == EditMode::Strum) { setupSelectedChords(); }
 			update();
@@ -1948,17 +1891,7 @@ void PianoRoll::mousePressEvent(QMouseEvent * me )
 			else if( me->button() == Qt::LeftButton &&
 							m_editMode == EditMode::Select )
 			{
-				// select an area of notes
-
-				m_selectStartTick = pos_ticks;
-				m_selectedTick = 0;
-				m_selectStartKey = key_num;
-				m_selectedKeys = 1;
 				m_action = Action::SelectNotes;
-
-				// call mousemove to fix glitch where selection
-				// appears in wrong spot on mousedown
-				mouseMoveEvent( me );
 			}
 
 			update();
@@ -2224,35 +2157,59 @@ void PianoRoll::testPlayKey( int key, int velocity, int pan )
 }
 
 
+QRect PianoRoll::getSelectionBox()
+{
+	int left = std::min(m_moveStartX, m_lastMouseX);
+	int right = std::max(m_moveStartX, m_lastMouseX);
+	int top = std::min(m_moveStartY, m_lastMouseY);
+	int bottom = std::max(m_moveStartY, m_lastMouseY);
+
+	// Selection on the piano selects all notes on that key
+	if (left < m_whiteKeyWidth)
+	{
+		left = m_whiteKeyWidth;
+		right = width();
+	}
+	// Selection on the timeline selects all notes at that time
+	if (top < PR_TOP_MARGIN)
+	{
+		top = PR_TOP_MARGIN;
+		bottom = height();
+	}
+
+	// Round top and bottom to grid lines (the first line start 1 pixel above the editor)
+	// TODO there's something wrong with getKey(), that's why we have to subtract 2 here.
+	top = (top - PR_TOP_MARGIN - 2) / m_keyLineHeight * m_keyLineHeight + PR_TOP_MARGIN - 1;
+	bottom = (bottom - PR_TOP_MARGIN - 2) / m_keyLineHeight * m_keyLineHeight + PR_TOP_MARGIN - 1 + m_keyLineHeight;
+
+	return {left, top, right-left, bottom-top};
+}
 
 
 void PianoRoll::computeSelectedNotes(bool shift)
 {
-	if( m_selectStartTick == 0 &&
-		m_selectedTick == 0 &&
-		m_selectStartKey == 0 &&
-		m_selectedKeys == 0 )
+	int left = std::min(m_moveStartX, m_lastMouseX);
+	int top = std::min(m_moveStartY, m_lastMouseY);
+	int right = std::max(m_moveStartX, m_lastMouseX);
+	int bottom = std::max(m_moveStartY, m_lastMouseY);
+
+	int start = 0;
+	int end = m_midiClip->length();
+	int topKey = NumKeys;
+	int bottomKey = 0;
+
+	if (left >= m_whiteKeyWidth)
 	{
-		// don't bother, there's no selection
-		return;
+		start = -m_whiteKeyWidth + m_currentPosition + left * TimePos::ticksPerBar() / m_ppb;
+		end = -m_whiteKeyWidth + m_currentPosition + right * TimePos::ticksPerBar() / m_ppb;
 	}
 
-	// setup selection-vars
-	int sel_pos_start = m_selectStartTick;
-	int sel_pos_end = m_selectStartTick+m_selectedTick;
-	if( sel_pos_start > sel_pos_end )
+	if (top >= PR_TOP_MARGIN)
 	{
-		qSwap<int>( sel_pos_start, sel_pos_end );
+		topKey = getKey(top);
+		bottomKey = getKey(bottom);
 	}
 
-	int sel_key_start = m_selectStartKey - m_startKey + 1;
-	int sel_key_end = sel_key_start + m_selectedKeys;
-	if( sel_key_start > sel_key_end )
-	{
-		qSwap<int>( sel_key_start, sel_key_end );
-	}
-
-	//int y_base = noteEditTop() - 1;
 	if( hasValidMidiClip() )
 	{
 		for( Note *note : m_midiClip->notes() )
@@ -2262,27 +2219,11 @@ void PianoRoll::computeSelectedNotes(bool shift)
 			{
 				note->setSelected( false );
 			}
-
-			int len_ticks = note->length();
-
-			if( len_ticks == 0 )
-			{
-				continue;
-			}
-			else if( len_ticks < 0 )
-			{
-				len_ticks = 4;
-			}
-
-			const int key = note->key() - m_startKey + 1;
-
-			int pos_ticks = note->pos();
-
 			// if the selection even barely overlaps the note
-			if( key > sel_key_start &&
-				key <= sel_key_end &&
-				pos_ticks + len_ticks > sel_pos_start &&
-				pos_ticks < sel_pos_end )
+			if (note->key() >= bottomKey
+				&& note->key() <= topKey
+				&& note->endPos() > start
+				&& note->pos() < end)
 			{
 				// remove from selection when holding shift
 				bool selected = shift && note->selected();
@@ -2290,8 +2231,6 @@ void PianoRoll::computeSelectedNotes(bool shift)
 			}
 		}
 	}
-
-	removeSelection();
 	update();
 }
 
@@ -2318,7 +2257,7 @@ void PianoRoll::mouseReleaseEvent( QMouseEvent * me )
 	{
 		mustRepaint = true;
 
-		if( m_action == Action::SelectNotes && m_editMode == EditMode::Select )
+		if (m_action == Action::SelectNotes)
 		{
 			// select the notes within the selection rectangle and
 			// then destroy the selection rectangle
@@ -2667,23 +2606,6 @@ void PianoRoll::mouseMoveEvent( QMouseEvent * me )
 						m_editMode == EditMode::Select &&
 						m_action == Action::SelectNotes )
 		{
-			// change size of selection
-
-			// get tick in which the cursor is posated
-			int pos_ticks = x * TimePos::ticksPerBar() / m_ppb +
-							m_currentPosition;
-
-			m_selectedTick = pos_ticks - m_selectStartTick;
-			if( (int) m_selectStartTick + m_selectedTick < 0 )
-			{
-				m_selectedTick = -static_cast<int>(
-							m_selectStartTick );
-			}
-			m_selectedKeys = key_num - m_selectStartKey;
-			if( key_num <= m_selectStartKey )
-			{
-				--m_selectedKeys;
-			}
 		}
 		else if( ( m_editMode == EditMode::Draw && me->buttons() & Qt::RightButton )
 				|| ( m_editMode == EditMode::Erase && me->buttons() ) )
@@ -2747,81 +2669,6 @@ void PianoRoll::mouseMoveEvent( QMouseEvent * me )
 	}
 	else
 	{
-		if( me->buttons() & Qt::LeftButton &&
-					m_editMode == EditMode::Select &&
-					m_action == Action::SelectNotes )
-		{
-
-			int x = me->x() - m_whiteKeyWidth;
-			if( x < 0 && m_currentPosition > 0 )
-			{
-				x = 0;
-				QCursor::setPos( mapToGlobal( QPoint(
-							m_whiteKeyWidth,
-							me->y() ) ) );
-				if( m_currentPosition >= 4 )
-				{
-					m_leftRightScroll->setValue(
-							m_currentPosition - 4 );
-				}
-				else
-				{
-					m_leftRightScroll->setValue( 0 );
-				}
-			}
-			else if (x > width() - m_whiteKeyWidth)
-			{
-				x = width() - m_whiteKeyWidth;
-				QCursor::setPos( mapToGlobal( QPoint( width(),
-							me->y() ) ) );
-				m_leftRightScroll->setValue( m_currentPosition +
-									4 );
-			}
-
-			// get tick in which the cursor is posated
-			int pos_ticks = x * TimePos::ticksPerBar()/ m_ppb +
-							m_currentPosition;
-
-			m_selectedTick = pos_ticks -
-							m_selectStartTick;
-			if( (int) m_selectStartTick + m_selectedTick <
-									0 )
-			{
-				m_selectedTick = -static_cast<int>(
-							m_selectStartTick );
-			}
-
-
-			int key_num = getKey( me->y() );
-			int visible_keys = ( height() - PR_TOP_MARGIN -
-						PR_BOTTOM_MARGIN -
-						m_notesEditHeight ) /
-							m_keyLineHeight + 2;
-			const int s_key = m_startKey - 1;
-
-			if( key_num <= s_key )
-			{
-				QCursor::setPos( mapToGlobal( QPoint( me->x(),
-							keyAreaBottom() ) ) );
-				m_topBottomScroll->setValue(
-					m_topBottomScroll->value() + 1 );
-				key_num = s_key;
-			}
-			else if( key_num >= s_key + visible_keys )
-			{
-				QCursor::setPos( mapToGlobal( QPoint( me->x(),
-							PR_TOP_MARGIN ) ) );
-				m_topBottomScroll->setValue(
-					m_topBottomScroll->value() - 1 );
-				key_num = s_key + visible_keys;
-			}
-
-			m_selectedKeys = key_num - m_selectStartKey;
-			if( key_num <= m_selectStartKey )
-			{
-				--m_selectedKeys;
-			}
-		}
 		setCursor( Qt::ArrowCursor );
 	}
 
@@ -3210,7 +3057,12 @@ void PianoRoll::paintEvent(QPaintEvent * pe )
 
 	// fill with bg color
 	p.fillRect( 0, 0, width(), height(), bgColor );
-
+	
+	QPoint mousePosition = mapFromGlobal( QCursor::pos() );
+	p.setPen(QColor(200, 0, 200));
+	p.drawLine(mousePosition.x() - 10, mousePosition.y(), mousePosition.x() + 10, mousePosition.y());
+	p.drawLine(mousePosition.x(), mousePosition.y() - 10, mousePosition.x(), mousePosition.y() + 10);
+	
 	// set font-size to 80% of key line height
 	QFont f = p.font();
 	int keyFontSize = m_keyLineHeight * 0.8;
@@ -3561,21 +3413,6 @@ void PianoRoll::paintEvent(QPaintEvent * pe )
 	// following code draws all notes in visible area
 	// and the note editing stuff (volume, panning, etc)
 
-	// setup selection-vars
-	int sel_pos_start = m_selectStartTick;
-	int sel_pos_end = m_selectStartTick+m_selectedTick;
-	if( sel_pos_start > sel_pos_end )
-	{
-		qSwap<int>( sel_pos_start, sel_pos_end );
-	}
-
-	int sel_key_start = m_selectStartKey - m_startKey + 1;
-	int sel_key_end = sel_key_start + m_selectedKeys;
-	if( sel_key_start > sel_key_end )
-	{
-		qSwap<int>( sel_key_start, sel_key_end );
-	}
-
 	int y_base = keyAreaBottom() - 1;
 	if( hasValidMidiClip() )
 	{
@@ -3814,16 +3651,7 @@ void PianoRoll::paintEvent(QPaintEvent * pe )
 		width() - m_whiteKeyWidth,
 		height() - PR_TOP_MARGIN - m_notesEditHeight - PR_BOTTOM_MARGIN);
 
-	// now draw selection-frame
-	int x = ( ( sel_pos_start - m_currentPosition ) * m_ppb ) /
-						TimePos::ticksPerBar();
-	int w = ( ( ( sel_pos_end - m_currentPosition ) * m_ppb ) /
-						TimePos::ticksPerBar() ) - x;
-	int y = (int) y_base - sel_key_start * m_keyLineHeight;
-	int h = (int) y_base - sel_key_end * m_keyLineHeight - y;
-	p.setPen(m_selectedNoteColor);
-	p.setBrush( Qt::NoBrush );
-	p.drawRect(x + m_whiteKeyWidth, y, w, h);
+	paintSelectionBox(p);
 
 	// TODO: Get this out of paint event
 	int l = ( hasValidMidiClip() )? (int) m_midiClip->length() - m_midiClip->startTimeOffset() : 0;
@@ -3896,9 +3724,26 @@ void PianoRoll::paintEvent(QPaintEvent * pe )
 		{
 			p.drawPixmap( mousePosition + QPoint( 8, 8 ), *cursor );
 		}
+
 	}
+	
+	p.setPen(QColor(200, 0, 200));
+	p.drawLine(mousePosition.x() - 10, mousePosition.y(), mousePosition.x() + 10, mousePosition.y());
+	p.drawLine(mousePosition.x(), mousePosition.y() - 10, mousePosition.x(), mousePosition.y() + 10);
 }
 
+
+void PianoRoll::paintSelectionBox(QPainter& p)
+{
+	if (m_action == PianoRoll::Action::SelectNotes)
+	{
+		auto transparent = QColor(m_selectedNoteColor);
+		transparent.setAlpha(64);
+		p.setPen(m_selectedNoteColor);
+		p.setBrush(transparent);
+		p.drawRect(getSelectionBox());
+	}
+}
 
 
 
@@ -4384,47 +4229,11 @@ void PianoRoll::selectAll()
 		return;
 	}
 
-	// if first_time = true, we HAVE to set the vars for select
-	bool first_time = true;
-
-	for( const Note *note : m_midiClip->notes() )
+	for (Note* note: m_midiClip->notes())
 	{
-		int len_ticks = static_cast<int>( note->length() ) > 0 ?
-				static_cast<int>( note->length() ) : 1;
-
-		const int key = note->key();
-
-		int pos_ticks = note->pos();
-		if( key <= m_selectStartKey || first_time )
-		{
-			// if we move start-key down, we have to add
-			// the difference between old and new start-key
-			// to m_selectedKeys, otherwise the selection
-			// is just moved down...
-			m_selectedKeys += m_selectStartKey
-							- ( key - 1 );
-			m_selectStartKey = key - 1;
-		}
-		if( key >= m_selectedKeys + m_selectStartKey ||
-							first_time )
-		{
-			m_selectedKeys = key - m_selectStartKey;
-		}
-		if( pos_ticks < m_selectStartTick ||
-							first_time )
-		{
-			m_selectStartTick = pos_ticks;
-		}
-		if( pos_ticks + len_ticks >
-			m_selectStartTick + m_selectedTick ||
-							first_time )
-		{
-			m_selectedTick = pos_ticks +
-						len_ticks -
-						m_selectStartTick;
-		}
-		first_time = false;
+		note->setSelected(true);
 	}
+	update();
 }
 
 

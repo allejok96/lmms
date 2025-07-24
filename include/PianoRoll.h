@@ -191,12 +191,13 @@ protected:
 	void wheelEvent( QWheelEvent * we ) override;
 	void focusOutEvent( QFocusEvent * ) override;
 	void focusInEvent( QFocusEvent * ) override;
+	
+	void paintSelectionBox(QPainter& p);
 
 	int getKey( int y ) const;
 	void drawNoteRect( QPainter & p, int x, int y,
 					int  width, const Note * n, const QColor & noteCol, const QColor & noteTextColor,
 					const QColor & selCol, const int noteOpc, const bool borderless, bool drawNoteName );
-	void removeSelection();
 	void selectAll();
 	NoteVector getSelectedNotes() const;
 	void selectNotesOnKey();
@@ -243,8 +244,6 @@ protected slots:
 	void markSemiTone(SemiToneMarkerAction i, bool fromMenu = true);
 
 	void hideMidiClip( lmms::MidiClip* clip );
-
-	void selectRegionFromPixels( int xStart, int xEnd );
 
 	void clearGhostClip();
 	void glueNotes();
@@ -395,11 +394,6 @@ private:
 	NoteEditMode m_noteEditMode;
 	GridMode m_gridMode;
 
-	int m_selectStartTick;
-	int m_selectedTick;
-	int m_selectStartKey;
-	int m_selectedKeys;
-
 	// boundary box around all selected notes when dragging
 	int m_moveBoundaryLeft;
 	int m_moveBoundaryTop;
@@ -458,8 +452,11 @@ private:
 	bool mouseOverNote();
 	Note * noteUnderMouse();
 
+	//! quantize the selection rectangle to the grid
+	QRect getSelectionBox();
 	// turn a selection rectangle into selected notes
 	void computeSelectedNotes( bool shift );
+	// deselect all
 	void clearSelectedNotes();
 
 	// did we start a mouseclick with shift pressed
