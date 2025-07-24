@@ -191,11 +191,12 @@ protected:
 	void wheelEvent( QWheelEvent * we ) override;
 	void focusOutEvent( QFocusEvent * ) override;
 	void focusInEvent( QFocusEvent * ) override;
-
-	int getKey( int y ) const;
+	
+	// paintEvent related
 	void drawNoteRect( QPainter & p, int x, int y,
 					int  width, const Note * n, const QColor & noteCol, const QColor & noteTextColor,
 					const QColor & selCol, const int noteOpc, const bool borderless, bool drawNoteName );
+	
 	void removeSelection();
 	void selectAll();
 	NoteVector getSelectedNotes() const;
@@ -263,6 +264,12 @@ signals:
 
 
 private:
+	static const int SCROLLBAR_SIZE = 12;
+	static const int PR_TOP_MARGIN = 18;
+	static const int PR_BOTTOM_MARGIN = SCROLLBAR_SIZE;
+	static const int PR_RIGHT_MARGIN = SCROLLBAR_SIZE;
+	static const int NOTE_EDIT_RESIZE_BAR = 6;
+	
 	enum class Action
 	{
 		None,
@@ -295,7 +302,24 @@ private:
 		Snap
 	//	Free
 	};
-
+	
+	struct Coordinates
+	{
+		int noteAreaWidth;
+		int noteAreaHeight;
+		int noteAreaBottomPixel;
+		int noteAreaRightmostPixel;
+		
+		int resizeLineTop;
+		
+		int noteEditTop;
+		int noteEditBottomPixel;
+		
+		int editorHeight;
+	};
+	
+	
+	
 	PositionLine * m_positionLine;
 
 	std::vector<QString> m_nemStr; // gui names of each edit mode
@@ -335,13 +359,49 @@ private:
 	void updatePositionLineHeight();
 
 	QList<int> getAllOctavesForKey( int keyToMirror ) const;
-
-	int noteEditTop() const;
-	int keyAreaBottom() const;
-	int noteEditBottom() const;
-	int keyAreaTop() const;
-	int noteEditRight() const;
-	int noteEditLeft() const;
+	
+	// Coordinates for painting and mouse position calculations
+	
+	Coordinates m_coordinates;
+	void updateCoordinates();
+	
+	int pianoLeft() const { return 0; }
+	int pianoTop() const { return PR_TOP_MARGIN; }
+	int pianoWidth() const { return m_whiteKeyWidth; }
+	int pianoHeight() const { return m_coordinates.noteAreaHeight; }
+	int pianoBottomPixel() const { return m_coordinates.noteAreaBottomPixel; }
+	
+	int noteAreaLeft() const { return m_whiteKeyWidth; }
+	int noteAreaTop() const { return PR_TOP_MARGIN; }
+	int noteAreaWidth() const { return m_coordinates.noteAreaWidth; }
+	int noteAreaHeight() const { return m_coordinates.noteAreaHeight; }
+	int noteAreaRightmostPixel() const { return m_coordinates.noteAreaRightmostPixel; }
+	int noteAreaBottomPixel() const { return m_coordinates.noteAreaBottomPixel; }
+	
+	int resizeLineTop() const { return m_coordinates.resizeLineTop; }
+	
+	int noteEditLeft() const { return m_whiteKeyWidth; }
+	int noteEditTop() const { return m_coordinates.noteEditTop; }
+	int noteEditWidth() const { return m_coordinates.noteAreaWidth; }
+	int noteEditHeight() const { return m_notesEditHeight; }
+	int noteEditBottomPixel() const { return m_coordinates.noteEditBottomPixel; }
+	int noteEditRightmostPixel() const { return m_coordinates.noteAreaRightmostPixel; }
+	
+	int editorTop() const { return PR_TOP_MARGIN; }
+	int editorLeft() const { return m_whiteKeyWidth; }
+	int editorWidth() const { return m_coordinates.noteAreaWidth; }
+	int editorHeight() const { return m_coordinates.editorHeight; }
+	int editorBottomPixel() const { return m_coordinates.noteEditBottomPixel; }
+	int editorRightmostPixel() const { return m_coordinates.noteAreaRightmostPixel; }
+	
+	//! Return key at pixel Y
+	int getKey(const int y) const;
+	//! Return tick at pixel X
+	int getTick(const int x) const;
+	//! Return leftmost pixel for tick
+	int xCoordOfTick(const int tick) const;
+	//! Return topmost pixel for key
+	int yCoordOfKey(const int key) const;
 
 	void dragNotes(int x, int y, bool alt, bool shift, bool ctrl);
 
