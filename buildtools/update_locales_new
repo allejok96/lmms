@@ -1,0 +1,32 @@
+#!/bin/bash
+aberr(){ printf "[\e[31mERROR\e[0m]: \e[1m%s\e[0m\n" "$*" >&2; }
+abinfo(){ printf "[\e[96mINFO\e[0m]: \e[1m%s\e[0m\n" "$*" >&2; }
+
+[[ $# != 1 || $1 == -* ]] && exec cat<<EOF
+update_locales FILE
+Find strings in code and update the specified .ts file.
+Essentially running lupdate, but excluding third-party files.
+EOF
+
+if ! which lupdate-qt5 > /dev/null; then
+  aberr "You don't seem to have Qt i18n tools installed.\n" \
+  "\tUsually this comes with your Qt installation, or you need to\n" \
+  "\tinstall extra packages like \`qt5-tools\` or similar."
+  exit 1;
+fi
+
+abinfo "Scanning directories..."
+
+# From lupdate --help
+supported_extensions='\.(java|jui|ui|c|c[+][+]|cc|cpp|cxx|ch|h|h[+][+]|hh|hpp|hxx|js|qs|qml|qrc)$'
+# Create an array of files
+mapfile -t files < <(git ls-files | grep -E "$supported_extensions")
+
+abinfo "Updating strings..."
+
+# TODO Should we use -no-obsolete?
+if ! lupdate-qt5 -I include/ "${files[@]}" -ts "$1"; then
+  aberr "There are some problems when collecting the strings."
+  exit 1
+fi
+
