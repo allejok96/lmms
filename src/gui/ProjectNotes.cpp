@@ -54,6 +54,8 @@
 #include <QSplitter>
 #include <QScrollBar>
 
+// PLEASE MIGHTY BUILD BOT, REBUILD THIS THING
+
 namespace lmms::gui
 {
 
