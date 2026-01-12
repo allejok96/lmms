@@ -46,6 +46,7 @@ SET(LMMS_PLUGIN_LIST
 	Lv2Effect
 	Lv2Instrument
 	Lb302
+	MelodyEditor
 	MidiImport
 	MidiExport
 	MultitapEcho
