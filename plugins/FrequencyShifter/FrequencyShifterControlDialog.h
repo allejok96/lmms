@@ -1,7 +1,7 @@
 /*
- * MidiOss.h - OSS raw MIDI client
+ * FrequencyShifterControlDialog.h
  *
- * Copyright (c) 2005-2014 Tobias Doerffel <tobydox/at/users.sourceforge.net>
+ * Copyright (c) 2025 Lost Robot <r94231/at/gmail/dot/com>
  *
  * This file is part of LMMS - https://lmms.io
  *
@@ -19,63 +19,52 @@
  * License along with this program (see COPYING); if not, write to the
  * Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
  * Boston, MA 02110-1301 USA.
- *
  */
 
-#ifndef LMMS_MIDI_OSS_H
-#define LMMS_MIDI_OSS_H
+#ifndef LMMS_FREQUENCY_SHIFTER_CONTROL_DIALOG_H
+#define LMMS_FREQUENCY_SHIFTER_CONTROL_DIALOG_H
 
-#include "lmmsconfig.h"
+#include "EffectControlDialog.h"
 
-#ifdef LMMS_HAVE_OSS
-
-#include <QThread>
-#include <QFile>
-
-#include "MidiClient.h"
-
+#include <QTextEdit>
 
 namespace lmms
 {
 
+class FrequencyShifterControls;
 
-class MidiOss : public QThread, public MidiClientRaw
+namespace gui
+{
+
+class FrequencyShifterControlDialog : public EffectControlDialog
 {
 	Q_OBJECT
 public:
-	MidiOss();
-	~MidiOss() override;
+	FrequencyShifterControlDialog(FrequencyShifterControls* c);
+	~FrequencyShifterControlDialog() override = default;
 
-	static QString probeDevice();
+public slots:
+	void showHelpWindow();
+};
 
 
-	inline static QString name()
+class FrequencyShifterHelpView : public QTextEdit
+{
+	Q_OBJECT
+public:
+	static FrequencyShifterHelpView* getInstance()
 	{
-		return( QT_TRANSLATE_NOOP( "MidiSetupWidget",
-			"OSS Raw-MIDI (Open Sound System)" ) );
+		static FrequencyShifterHelpView* instance = new FrequencyShifterHelpView;
+		return instance;
 	}
-
-	inline static QString configSection()
-	{
-		return "midioss";
-	}
-
-protected:
-	void sendByte( const unsigned char c ) override;
-	void run() override;
-
 
 private:
-	QFile m_midiDev;
+	FrequencyShifterHelpView();
+	static QString s_helpText;
+};
 
-	volatile bool m_quit;
-
-} ;
-
+} // namespace gui
 
 } // namespace lmms
 
-
-#endif // LMMS_HAVE_OSS
-
-#endif // LMMS_MIDI_OSS_H
+#endif // LMMS_FREQUENCY_SHIFTER_CONTROL_DIALOG_H
